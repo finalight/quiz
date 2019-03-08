@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Question structure
@@ -21,6 +23,29 @@ type Quiz struct {
 	score     int
 }
 
+func ask(question *Question, c chan int) {
+
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf("What is the answer for %s?: ", question.QuestionText)
+	input, _ := reader.ReadString('\n')
+
+	answer, err := strconv.Atoi(strings.TrimSpace(input))
+	if err != nil {
+		fmt.Println("Why have error?")
+		c <- 0
+		return
+	}
+
+	if answer == question.Answer {
+		fmt.Println("You are correct")
+		c <- 1
+	} else {
+		fmt.Printf("Wrong answer, the correct answer is %v\n", question.Answer)
+		c <- 0
+	}
+
+}
+
 func main() {
 	quizOverall, err := readFromCSV("problems.csv")
 
@@ -28,22 +53,25 @@ func main() {
 		fmt.Println("Error in reading file")
 		return
 	}
-	for index := range quizOverall.Questions {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Printf("What is the answer for %s?: ", quizOverall.Questions[index].QuestionText)
-		input, _ := reader.ReadString('\n')
 
-		answer, err := strconv.Atoi(strings.TrimSpace(input))
-		if err != nil {
-			fmt.Println("Why have error?")
+	deadline := time.Second * 5
+	c := make(chan int, 1)
+
+	for _, question := range quizOverall.Questions {
+		ctx, cancel := context.WithTimeout(context.Background(), deadline)
+		go func() {
+			ask(&question, c)
+		}()
+
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			fmt.Println()
+			fmt.Println("Timeout, next question")
+		case result := <-c:
+			quizOverall.score += result
 		}
 
-		if answer == quizOverall.Questions[index].Answer {
-			fmt.Println("You are correct")
-			quizOverall.score++
-		} else {
-			fmt.Printf("Wrong answer? The correct answer is %v\n", quizOverall.Questions[index].Answer)
-		}
 	}
 
 	fmt.Printf("The score is %v\n", quizOverall.score)
