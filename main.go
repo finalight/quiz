@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -47,7 +48,7 @@ func ask(question *Question, c chan int) {
 }
 
 func main() {
-	quizOverall, err := readFromCSV("problems.csv")
+	quizOverall, err := readFromCSV("problems.csv", true)
 
 	if err != nil {
 		fmt.Println("Error in reading file")
@@ -78,7 +79,7 @@ func main() {
 
 }
 
-func readFromCSV(location string) (*Quiz, error) {
+func readFromCSV(location string, shuffle bool) (*Quiz, error) {
 	quizOverall := Quiz{}
 	file, err := os.Open(location)
 
@@ -106,6 +107,12 @@ func readFromCSV(location string) (*Quiz, error) {
 		quizOverall.Questions = append(quizOverall.Questions, question)
 	}
 
+	if shuffle {
+		rand.Seed(time.Now().UnixNano())
+		rand.Shuffle(len(quizOverall.Questions), func(i, j int) {
+			quizOverall.Questions[i], quizOverall.Questions[j] = quizOverall.Questions[j], quizOverall.Questions[i]
+		})
+	}
 	return &quizOverall, nil
 
 }
